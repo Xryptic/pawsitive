@@ -1,0 +1,210 @@
+import React, { useState, useEffect, useRef } from "react";
+
+const gravity = 0.6;
+const jump = -10;
+const obstacleSpeed = 3;
+const gapHeight = 150;
+const birdSize = 40;
+const obstacleSpacing = 250;
+const screenHeight = 600;
+
+const digitSprites = {
+  0: "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/0.png",
+  1: "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/1.png",
+  2: "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/2.png",
+  3: "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/3.png",
+  4: "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/4.png",
+  5: "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/5.png",
+  6: "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/6.png",
+  7: "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/7.png",
+  8: "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/8.png",
+  9: "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/9.png"
+};
+
+const FlappyBill = () => {
+  const [billY, setBillY] = useState(200);
+  const [velocity, setVelocity] = useState(0);
+  const [obstacles, setObstacles] = useState([
+    { x: 500, gapY: Math.random() * 200 + 100 },
+    { x: 500 + obstacleSpacing, gapY: Math.random() * 200 + 100 },
+    { x: 500 + 2 * obstacleSpacing, gapY: Math.random() * 200 + 100 }
+  ]);
+  const [score, setScore] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [frame, setFrame] = useState(0);
+  const [started, setStarted] = useState(false);
+  const gameRef = useRef(null);
+
+  const birdFrames = [
+    "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/redbird-downflap.png",
+    "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/redbird-midflap.png",
+    "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/redbird-upflap.png"
+  ];
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.code === "Space") {
+        flap();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [gameOver, started]);
+
+  useEffect(() => {
+    if (!started || gameOver) return;
+
+    const gameLoop = setInterval(() => {
+      setVelocity((v) => v + gravity);
+      setBillY((y) => y + velocity);
+      setObstacles((obs) => {
+        const newObs = obs
+          .map((o) => ({ ...o, x: o.x - obstacleSpeed }))
+          .filter((o) => o.x > -60);
+        while (newObs.length < 3) {
+          const lastX = newObs[newObs.length - 1]?.x || 500;
+          newObs.push({ x: lastX + obstacleSpacing, gapY: Math.random() * 200 + 100 });
+          setScore((s) => s + 1);
+        }
+        return newObs;
+      });
+      setFrame((f) => (f + 1) % 3);
+      checkCollision();
+    }, 30);
+
+    return () => clearInterval(gameLoop);
+  }, [velocity, gameOver, started]);
+
+  const flap = () => {
+    if (!started) {
+      setStarted(true);
+      return;
+    }
+    if (!gameOver) setVelocity(jump);
+    else resetGame();
+  };
+
+  const checkCollision = () => {
+    const billTop = billY;
+    const billBottom = billY + birdSize;
+    const billLeft = 60;
+    const billRight = billLeft + birdSize;
+
+    if (billBottom >= screenHeight) {
+      setGameOver(true);
+      setVelocity(0);
+      return;
+    }
+
+    for (const obs of obstacles) {
+      const pipeLeft = obs.x;
+      const pipeRight = obs.x + 50;
+      const gapTop = obs.gapY;
+      const gapBottom = obs.gapY + gapHeight;
+      const collided =
+        billRight > pipeLeft &&
+        billLeft < pipeRight &&
+        (billTop < gapTop || billBottom > gapBottom);
+      if (collided) {
+        setGameOver(true);
+        setVelocity(0);
+        return;
+      }
+    }
+  };
+
+  const resetGame = () => {
+    setBillY(200);
+    setVelocity(0);
+    setObstacles([
+      { x: 500, gapY: Math.random() * 200 + 100 },
+      { x: 500 + obstacleSpacing, gapY: Math.random() * 200 + 100 },
+      { x: 500 + 2 * obstacleSpacing, gapY: Math.random() * 200 + 100 }
+    ]);
+    setScore(0);
+    setGameOver(false);
+    setStarted(false);
+  };
+
+  const renderScore = () => {
+    return String(score).split("").map((digit, index) => (
+      <img
+        key={index}
+        src={digitSprites[digit]}
+        alt={`Digit ${digit}`}
+        style={{ width: 24, height: 36, marginLeft: 2 }}
+      />
+    ));
+  };
+
+  return (
+    <div
+      ref={gameRef}
+      className="relative w-full h-[600px] overflow-hidden"
+      onClick={flap}
+      style={{
+        backgroundImage: "url('https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/background-day.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center"
+      }}
+    >
+      <img
+        src={birdFrames[frame]}
+        alt="Flappy Bird"
+        className="absolute left-16"
+        style={{ top: `${billY}px`, width: birdSize, height: birdSize }}
+      />
+
+      {obstacles.map((obs, i) => (
+        <React.Fragment key={i}>
+          <img
+            src="https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/pipe-green.png"
+            alt="Pipe Top"
+            className="absolute"
+            style={{ left: `${obs.x}px`, height: `${obs.gapY}px`, top: 0, width: "52px", transform: "rotate(180deg)" }}
+          />
+          <img
+            src="https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/pipe-green.png"
+            alt="Pipe Bottom"
+            className="absolute"
+            style={{ left: `${obs.x}px`, height: `calc(100% - ${obs.gapY + gapHeight}px)`, top: `${obs.gapY + gapHeight}px`, width: "52px" }}
+          />
+        </React.Fragment>
+      ))}
+
+      <img
+        src="https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/base.png"
+        alt="Base"
+        className="absolute bottom-0 w-full"
+        style={{ height: "112px" }}
+      />
+
+      <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-white font-bold text-sm">
+        SCORE
+      </div>
+      <div className="absolute top-6 left-1/2 transform -translate-x-1/2 flex">
+        {renderScore()}
+      </div>
+
+      {!started && (
+        <img
+          src="https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/message.png"
+          alt="Start Message"
+          className="absolute left-1/2 top-1/4 transform -translate-x-1/2"
+          style={{ width: "auto", height: "auto", maxWidth: 300 }}
+        />
+      )}
+
+      {gameOver && (
+        <img
+          src="https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/gameover.png"
+          alt="Game Over"
+          className="absolute left-1/2 top-1/4 transform -translate-x-1/2"
+          style={{ width: "auto", height: "auto", maxWidth: 300 }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default FlappyBill;
